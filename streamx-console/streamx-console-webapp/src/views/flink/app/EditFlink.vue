@@ -35,6 +35,40 @@
       </a-form-item>
 
       <a-form-item
+        label="Execution Mode"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-select
+          placeholder="Execution Mode"
+          v-decorator="[ 'executionMode', {rules: [{ required: true, message: 'Execution Mode is required' }] }]">
+          <a-select-option
+            v-for="(o,index) in executionMode"
+            :key="`execution_mode_${index}`"
+            :disabled="o.disabled"
+            :value="o.value">
+            {{ o.mode }}
+          </a-select-option>
+        </a-select>
+      </a-form-item>
+
+      <a-form-item
+        label="Flink Version"
+        :label-col="{lg: {span: 5}, sm: {span: 7}}"
+        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
+        <a-select
+          placeholder="Flink Version"
+          v-decorator="[ 'versionId', {rules: [{ required: true, message: 'Flink Version is required' }] }]"
+          @change="handleFlinkVersion">>
+          <a-select-option
+            v-for="(v,index) in flinkVersions"
+            :key="`version_${index}`"
+            :value="v.id">
+            {{ v.flinkName }}
+          </a-select-option>
+        </a-select>
+      </a-form-item>
+
+      <a-form-item
         label="Program Jar"
         :label-col="{lg: {span: 5}, sm: {span: 7}}"
         :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
@@ -83,23 +117,6 @@
             :key="`resolve_order_${index}`"
             :value="o.order">
             {{ o.name }}
-          </a-select-option>
-        </a-select>
-      </a-form-item>
-
-      <a-form-item
-        label="Execution Mode"
-        :label-col="{lg: {span: 5}, sm: {span: 7}}"
-        :wrapper-col="{lg: {span: 16}, sm: {span: 17} }">
-        <a-select
-          placeholder="Execution Mode"
-          v-decorator="[ 'executionMode', {rules: [{ required: true, message: 'Execution Mode is required' }] }]">
-          <a-select-option
-            v-for="(o,index) in executionMode"
-            :key="`execution_mode_${index}`"
-            :disabled="o.disabled"
-            :value="o.value">
-            {{ o.mode }}
           </a-select-option>
         </a-select>
       </a-form-item>
@@ -442,6 +459,7 @@ import { jars } from '@api/project'
 import { get, update, exists, main } from '@api/application'
 import { mapActions, mapGetters } from 'vuex'
 import configOptions from './Option'
+import {list as listVersion} from '@/api/flinkversion'
 
 export default {
   name: 'EditFlink',
@@ -458,18 +476,20 @@ export default {
       defaultJar: null,
       configSource: [],
       jars: [],
+      flinkVersions: [],
       validateAgain: false,
       resolveOrder: [
         { name: 'parent-first', order: 0 },
         { name: 'child-first', order: 1 }
       ],
       executionMode: [
-        { mode: 'local', value: 0,disabled: true },
-        { mode: 'remote', value: 1,disabled: true },
-        { mode: 'yarn pre-job', value: 2,disabled: true },
-        { mode: 'yarn-session', value: 3,disabled: true },
-        { mode: 'yarn application', value: 4,disabled: false },
-        { mode: 'kubernetes', value: 5,disabled: true }
+        { mode: 'local', value: 0, disabled: true },
+        { mode: 'standalone', value: 1, disabled: true },
+        { mode: 'yarn pre-job', value: 2, disabled: true },
+        { mode: 'yarn session', value: 3, disabled: true },
+        { mode: 'yarn application', value: 4, disabled: false },
+        { mode: 'kubernetes session (comming soon)', value: 5, disabled: true },
+        { mode: 'kubernetes application (comming soon)', value: 6, disabled: true }
       ],
       cpTriggerAction: [
         { name: 'alert', value: 1 },
@@ -523,6 +543,9 @@ export default {
       this.optionsValueMapping.set(item.name, item.key)
       this.form.getFieldDecorator(item.key, { initialValue: item.defaultValue, preserve: true })
     })
+    listVersion().then((resp)=>{
+      this.flinkVersions = resp.data
+    })
   },
 
   filters: {
@@ -541,6 +564,7 @@ export default {
     handleGet(appId) {
       get({ id: appId }).then((resp) => {
         this.app = resp.data
+        this.versionId = this.app.versionId
         this.defaultOptions = JSON.parse(this.app.options)
         jars({
           id: this.app.projectId,
@@ -570,6 +594,10 @@ export default {
 
     handleChangeProcess(item) {
       this.totalItems = item
+    },
+
+    handleFlinkVersion(id) {
+      this.versionId = id
     },
 
     handleCheckJobName(rule, value, callback) {
@@ -666,6 +694,7 @@ export default {
               id: this.app.id,
               jobName: values.jobName,
               resolveOrder: values.resolveOrder,
+              versionId: values.versionId,
               executionMode: values.executionMode,
               jar: values.jar,
               mainClass: values.mainClass,
@@ -746,10 +775,10 @@ export default {
           'alertEmail': this.app.alertEmail,
           'cpMaxFailureInterval': this.app.cpMaxFailureInterval,
           'cpFailureRateInterval': this.app.cpFailureRateInterval,
-          'cpFailureAction': this.app.cpFailureAction
+          'cpFailureAction': this.app.cpFailureAction,
+          'versionId': this.app.versionId
         })
       })
-
       let parallelism = null
       let slot = null
       this.totalItems = []

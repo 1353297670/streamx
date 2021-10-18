@@ -25,18 +25,18 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.streamxhub.streamx.common.conf.ConfigConst;
-import com.streamxhub.streamx.common.util.HdfsUtils;
 import com.streamxhub.streamx.console.base.domain.Constant;
 import com.streamxhub.streamx.console.base.domain.RestRequest;
 import com.streamxhub.streamx.console.base.exception.ServiceException;
 import com.streamxhub.streamx.console.base.util.CommonUtils;
 import com.streamxhub.streamx.console.base.util.SortUtils;
 import com.streamxhub.streamx.console.core.dao.SavePointMapper;
+import com.streamxhub.streamx.console.core.entity.Application;
+import com.streamxhub.streamx.console.core.entity.FlinkVersion;
 import com.streamxhub.streamx.console.core.entity.SavePoint;
 import com.streamxhub.streamx.console.core.enums.CheckPointType;
+import com.streamxhub.streamx.console.core.service.FlinkVersionService;
 import com.streamxhub.streamx.console.core.service.SavePointService;
-import com.streamxhub.streamx.console.core.service.SettingService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -54,7 +54,7 @@ import java.util.List;
 public class SavePointServiceImpl extends ServiceImpl<SavePointMapper, SavePoint> implements SavePointService {
 
     @Autowired
-    private SettingService settingService;
+    private FlinkVersionService flinkVersionService;
 
     @Override
     public void obsolete(Long appId) {
@@ -70,10 +70,11 @@ public class SavePointServiceImpl extends ServiceImpl<SavePointMapper, SavePoint
     }
 
     private void expire(SavePoint entity) {
+        FlinkVersion flinkVersion = flinkVersionService.getByAppId(entity.getAppId());
+        assert flinkVersion != null;
         int cpThreshold = Integer.parseInt(
-            settingService
-                .getFlinkDefaultConfig()
-                .getOrDefault("state.checkpoints.num-retained", "1")
+                flinkVersion.convertFlinkYamlAsMap()
+                        .getOrDefault("state.checkpoints.num-retained", "1")
         );
 
         if (CheckPointType.CHECKPOINT.equals(CheckPointType.of(entity.getType()))) {
@@ -85,10 +86,10 @@ public class SavePointServiceImpl extends ServiceImpl<SavePointMapper, SavePoint
         } else {
             LambdaQueryWrapper<SavePoint> queryWrapper = new QueryWrapper<SavePoint>().lambda();
             queryWrapper.select(SavePoint::getTriggerTime)
-                .eq(SavePoint::getAppId, entity.getAppId())
-                .eq(SavePoint::getType, CheckPointType.CHECKPOINT.get())
-                .orderByDesc(SavePoint::getTriggerTime)
-                .last("limit 0," + cpThreshold + 1);
+                    .eq(SavePoint::getAppId, entity.getAppId())
+                    .eq(SavePoint::getType, CheckPointType.CHECKPOINT.get())
+                    .orderByDesc(SavePoint::getTriggerTime)
+                    .last("limit 0," + cpThreshold + 1);
 
             List<SavePoint> savePointList = this.baseMapper.selectList(queryWrapper);
             if (!savePointList.isEmpty() && savePointList.size() > cpThreshold) {
@@ -105,11 +106,11 @@ public class SavePointServiceImpl extends ServiceImpl<SavePointMapper, SavePoint
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Boolean delete(Long id) throws ServiceException {
+    public Boolean delete(Long id, Application application) throws ServiceException {
         SavePoint savePoint = getById(id);
         try {
             if (CommonUtils.notEmpty(savePoint.getPath())) {
-                HdfsUtils.delete(savePoint.getPath());
+                application.getFsOperator().delete(savePoint.getPath());
             }
             removeById(id);
             return true;
@@ -126,8 +127,9 @@ public class SavePointServiceImpl extends ServiceImpl<SavePointMapper, SavePoint
     }
 
     @Override
-    public void removeApp(Long appId) {
-        baseMapper.removeApp(appId);
-        HdfsUtils.delete(ConfigConst.APP_SAVEPOINTS().concat("/").concat(appId.toString()));
+    public void removeApp(Application application) {
+        Long appId = application.getId();
+        baseMapper.removeApp(application.getId());
+        application.getFsOperator().delete(application.getWorkspace().APP_SAVEPOINTS().concat("/").concat(appId.toString()));
     }
 }

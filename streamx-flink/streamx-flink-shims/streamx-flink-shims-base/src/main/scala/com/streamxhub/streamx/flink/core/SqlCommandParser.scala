@@ -33,7 +33,7 @@ object SqlCommandParser extends Logger {
   def parseSQL(sql: String): List[SqlCommandCall] = {
     val sqlEmptyError = SqlError(SqlErrorType.VERIFY_FAILED, "sql is empty", sql).toString
     require(sql != null && sql.trim.nonEmpty, sqlEmptyError)
-    val lines = sql.split("\\n").filter(_ != null).filter(_.trim.nonEmpty).filter(!_.startsWith("--"))
+    val lines = sql.split("\\n").filter(_ != null).filter(x => x.trim.nonEmpty && !x.trim.startsWith("--"))
     lines match {
       case x if x.isEmpty => throw new RuntimeException(sqlEmptyError)
       case x =>
@@ -44,14 +44,14 @@ object SqlCommandParser extends Logger {
           if (line.trim.endsWith(";")) {
             parseLine(stmt.toString.trim) match {
               case Some(x) => calls += x
-              case _ => throw new RuntimeException(SqlError(SqlErrorType.UNSUPPORTED_SQL, exception = s"unsupported sql", sql = stmt.toString).toErrorString)
+              case _ => throw new RuntimeException(SqlError(SqlErrorType.UNSUPPORTED_SQL, exception = s"unsupported sql", sql = stmt.toString).toString)
             }
             // clear string builder
             stmt.clear()
           }
         }
         calls.toList match {
-          case Nil => throw new RuntimeException(SqlError(SqlErrorType.ENDS_WITH, exception = "not ends with \";\"", sql = sql).toErrorString)
+          case Nil => throw new RuntimeException(SqlError(SqlErrorType.ENDS_WITH, exception = "not ends with \";\"", sql = sql).toString)
           case r => r
         }
     }
@@ -347,11 +347,27 @@ case class SqlError(
                      exception: String = null,
                      sql: String = null
                    ) {
+
+  override def toString: String = SqlError.toString(this)
+
+}
+
+object SqlError {
+
   //不可见分隔符.
   private[core] val separator = "\001"
 
-  private[core] def toErrorString: String = {
-    s"${errorType.errorType}$separator$exception$separator$sql"
+  def toString(sqlError: SqlError): String = {
+    s"${sqlError.errorType.errorType}${SqlError.separator}${sqlError.exception}${SqlError.separator}${sqlError.sql}"
   }
-}
 
+  def fromString(string: String): SqlError = {
+    string match {
+      case null => null
+      case x => x.split(separator) match {
+        case Array(a, b, c) => SqlError(SqlErrorType.of(a.toInt), b, c)
+      }
+    }
+  }
+
+}

@@ -24,12 +24,16 @@ import redis.clients.jedis.{Jedis, JedisCluster, Pipeline, ScanParams}
 
 import java.lang.{Integer => JInt}
 import java.util.Set
+import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.immutable
 import scala.util.{Failure, Success, Try}
 
 
 /**
+ *
+ * <pre>
+ *
  * <<出征>>
  *
  * 让我扭过头决绝地走
@@ -90,10 +94,8 @@ import scala.util.{Failure, Success, Try}
  * 在出发之前唱起满江红
  * 看这一次
  * 无数的双手撑起黄鹤楼
+ * </pre>
  *
- */
-
-/**
  * @author benjobs
  */
 object RedisUtils extends Logger {
@@ -231,7 +233,7 @@ object RedisUtils extends Logger {
    * @param endpoint
    * @return
    */
-  def hmget(key: String, fields: String*)(implicit endpoint: RedisEndpoint): List[String] = doRedis(_.hmget(key, fields: _*).asScala.toList)
+  def hmget(key: String, fields: String*)(implicit endpoint: RedisEndpoint): List[String] = doRedis(_.hmget(key, fields: _*).toList)
 
   /**
    *
@@ -239,7 +241,7 @@ object RedisUtils extends Logger {
    * @param endpoint
    * @return
    */
-  def hgetAll(key: String)(implicit endpoint: RedisEndpoint): Map[String, String] = doRedis(_.hgetAll(key).asScala.toMap)
+  def hgetAll(key: String)(implicit endpoint: RedisEndpoint): Map[String, String] = doRedis(_.hgetAll(key).toMap)
 
   /**
    *
@@ -374,7 +376,7 @@ object RedisUtils extends Logger {
     do {
       val scanResult = r.scan(cursor, scanParams)
       cursor = scanResult.getCursor
-      val keys = scanResult.getResult.asScala.toList
+      val keys = scanResult.getResult.toList
       if (keys.nonEmpty) {
         r.del(keys: _*)
       }

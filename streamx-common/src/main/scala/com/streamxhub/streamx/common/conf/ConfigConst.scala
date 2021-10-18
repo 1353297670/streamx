@@ -20,6 +20,12 @@
  */
 package com.streamxhub.streamx.common.conf
 
+import com.streamxhub.streamx.common.util.SystemPropertyUtils
+import org.fusesource.jansi.Ansi.Color._
+import org.fusesource.jansi.Ansi.ansi
+
+import java.time.LocalDateTime
+
 object ConfigConst {
   /**
    *
@@ -61,6 +67,10 @@ object ConfigConst {
    * kerberos
    */
   val KEY_KERBEROS = "kerberos"
+
+  val KEY_HADOOP_USER_NAME = "HADOOP_USER_NAME"
+
+  val DEFAULT_HADOOP_USER_NAME = "hdfs"
 
   /**
    * hadoop.security.authentication
@@ -107,6 +117,8 @@ object ConfigConst {
   val KEY_FLINK_DEPLOYMENT_OPTION_PREFIX = "flink.deployment.option."
 
   val KEY_FLINK_APP_NAME = "yarn.application.name"
+
+  val KEY_FLINK_SAVEPOINT_PATH = "execution.savepoint.path"
 
   // --checkpoints--
   val KEY_FLINK_CHECKPOINTS_ENABLE = "flink.checkpoints.enable"
@@ -281,84 +293,42 @@ object ConfigConst {
 
   val KEY_ES_CLIENT_TRANSPORT_SNIFF = "client.transport.sniff"
 
-  val STREAMX_HDFS_WORKSPACE_DEFAULT = "/streamx"
+  val KEY_STREAMX_WORKSPACE_LOCAL = "streamx.workspace.local"
 
-  val KEY_STREAMX_HDFS_WORKSPACE = "streamx.hdfs.workspace"
+  val KEY_STREAMX_WORKSPACE_REMOTE = "streamx.workspace.remote"
 
-  lazy val HDFS_WORKSPACE: String = {
-    val workspace = System.getProperties.getProperty(KEY_STREAMX_HDFS_WORKSPACE, STREAMX_HDFS_WORKSPACE_DEFAULT)
-    require(!workspace.startsWith("hdfs://"))
-    workspace
+  val STREAMX_WORKSPACE_DEFAULT = "/streamx"
+
+  /**
+   * maven repository used for built-in compilation
+   */
+  val DEFAULT_MAVEN_REMOTE_URL = "https://repo1.maven.org/maven2/"
+
+  /**
+   * namespace for docker image used in docker build env and image register
+   */
+  val KEY_DOCKER_IMAGE_NAMESPACE = "streamx.docker.register.image-namespace"
+
+  val DOCKER_IMAGE_NAMESPACE_DEFAULT = "streamx"
+
+  lazy val DOCKER_IMAGE_NAMESPACE: String = SystemPropertyUtils.get(KEY_DOCKER_IMAGE_NAMESPACE, DOCKER_IMAGE_NAMESPACE_DEFAULT)
+
+  def printLogo(info: String): Unit = {
+    println(ansi.eraseScreen.fg(YELLOW).a("\n\n                 .+.                          ").reset)
+    println(ansi.eraseScreen.fg(YELLOW).a("           _____/ /_________  ____ _____ ___ ").fg(RED).a(" _  __").reset)
+    println(ansi.eraseScreen.fg(YELLOW).a("          / ___/ __/ ___/ _ \\/ __ `/ __ `__ \\").fg(RED).a("| |/_/").reset)
+    println(ansi.eraseScreen.fg(YELLOW).a("         (__  ) /_/ /  /  __/ /_/ / / / / / /").fg(RED).a(">  <  ").reset)
+    println(ansi.eraseScreen.fg(YELLOW).a("        /____/\\__/_/   \\___/\\__,_/_/ /_/ /_/").fg(RED).a("_/|_|  ").reset)
+    println(ansi.eraseScreen.fg(YELLOW).a("                                            ").fg(RED).a("  |/   ").reset)
+    println(ansi.eraseScreen.fg(YELLOW).a("                                            ").fg(RED).a("  .    ").reset)
+    println("\n       WebSite:  http://www.streamxhub.com            ")
+    println("       GitHub :  https://github.com/streamxhub/streamx")
+    println("       Gitee  :  https://gitee.com/streamxhub/streamx    ")
+    println("       Ver    :  1.2.0                                ")
+    println(s"       Info   :  $info")
+    println(s"       Time   :  ${LocalDateTime.now}")
+    println("\n")
   }
-
-  lazy val APP_PLUGINS = s"$HDFS_WORKSPACE/plugins"
-
-  /**
-   * 存放不同版本flink相关的jar
-   */
-  lazy val APP_SHIMS = s"$HDFS_WORKSPACE/shims"
-
-  lazy val APP_UPLOADS = s"$HDFS_WORKSPACE/uploads"
-
-  lazy val APP_WORKSPACE = s"$HDFS_WORKSPACE/workspace"
-
-  lazy val APP_FLINK = s"$HDFS_WORKSPACE/flink"
-
-  lazy val APP_BACKUPS = s"$HDFS_WORKSPACE/backups"
-
-  lazy val APP_SAVEPOINTS = s"$HDFS_WORKSPACE/savepoints"
-
-  /**
-   * 存放全局公共的jar
-   */
-  lazy val APP_JARS = s"$HDFS_WORKSPACE/jars"
-
-  val LOGO =
-    """
-      |
-      |                         ▒▓██▓██▒
-      |                     ▓████▒▒█▓▒▓███▓▒
-      |                  ▓███▓░░        ▒▒▒▓██▒  ▒
-      |                ░██▒   ▒▒▓▓█▓▓▒░      ▒████
-      |                ██▒         ░▒▓███▒    ▒█▒█▒
-      |                  ░▓█            ███   ▓░▒██
-      |                    ▓█       ▒▒▒▒▒▓██▓░▒░▓▓█
-      |                  █░ █   ▒▒░       ███▓▓█ ▒█▒▒▒
-      |                  ████░   ▒▓█▓      ██▒▒▒ ▓███▒
-      |               ░▒█▓▓██       ▓█▒    ▓█▒▓██▓ ░█░
-      |         ▓░▒▓████▒ ██         ▒█    █▓░▒█▒░▒█▒
-      |        ███▓░██▓  ▓█           █   █▓ ▒▓█▓▓█▒
-      |      ░██▓  ░█░            █  █▒ ▒█████▓▒ ██▓░▒
-      |     ███░ ░ █░          ▓ ░█ █████▒░░    ░█░▓  ▓░
-      |    ██▓█ ▒▒▓▒          ▓███████▓░       ▒█▒ ▒▓ ▓██▓
-      | ▒██▓ ▓█ █▓█       ░▒█████▓▓▒░         ██▒▒  █ ▒  ▓█▒
-      | ▓█▓  ▓█ ██▓ ░▓▓▓▓▓▓▓▒              ▒██▓           ░█▒
-      | ▓█    █ ▓███▓▒░              ░▓▓▓███▓          ░▒░ ▓█
-      | ██▓    ██▒    ░▒▓▓███▓▓▓▓▓██████▓▒            ▓███  █
-      |▓███▒ ███   ░▓▓▒░░   ░▓████▓░                  ░▒▓▒  █▓
-      |█▓▒▒▓▓██  ░▒▒░░░▒▒▒▒▓██▓░                            █▓
-      |██ ▓░▒█   ▓▓▓▓▒░░  ▒█▓       ▒▓▓██▓    ▓▒          ▒▒▓
-      |▓█▓ ▓▒█  █▓░  ░▒▓▓██▒            ░▓█▒   ▒▒▒░▒▒▓█████▒
-      | ██░ ▓█▒█▒  ▒▓▓▒  ▓█                █░      ░░░░   ░█▒
-      | ▓█   ▒█▓   ░     █░                ▒█              █▓
-      |  █▓   ██         █░                 ▓▓        ▒█▓▓▓▒█░
-      |   █▓ ░▓██░       ▓▒                  ▓█▓▒░░░▒▓█░    ▒█
-      |    ██   ▓█▓░      ▒                    ░▒█▒██▒      ▓▓
-      |     ▓█▒   ▒█▓▒░                         ▒▒ █▒█▓▒▒░░▒██
-      |      ░██▒    ▒▓▓▒                     ▓██▓▒█▒ ░▓▓▓▓▒█▓
-      |        ░▓██▒                          ▓░  ▒█▓█  ░░▒▒▒
-      |            ▒▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░▓▓  ▓░▒█░
-      |
-      |
-      |            ____ __                          _  __
-      |           / __// /_ ____ ___  ___ _ __ _   | |/_/
-      |          _\ \ / __// __// -_)/ _ `//  ' \ _>  <
-      |         /___/ \__//_/   \__/ \_,_//_/_/_//_/|_|
-      |
-      |
-      |          [StreamX] Make Flink|Spark easier ô‿ô!
-      |
-      |""".stripMargin
 
 }
 

@@ -21,9 +21,9 @@
 package com.streamxhub.streamx.flink.submit.`trait`
 
 import com.streamxhub.streamx.common.conf.ConfigConst._
-import com.streamxhub.streamx.common.util.{Logger, Utils}
+import com.streamxhub.streamx.common.util.{Logger, SystemPropertyUtils, Utils}
 import com.streamxhub.streamx.flink.core.scala.conf.FlinkRunOption
-import com.streamxhub.streamx.flink.submit.{SubmitRequest, SubmitResponse}
+import com.streamxhub.streamx.flink.submit.domain._
 import org.apache.commons.cli.{CommandLine, Options}
 import org.apache.flink.api.common.JobID
 import org.apache.flink.client.cli.{CliArgsException, CliFrontendParser, CustomCommandLine}
@@ -31,7 +31,6 @@ import org.apache.flink.configuration.{ConfigOption, CoreOptions, GlobalConfigur
 import org.apache.flink.util.Preconditions.checkNotNull
 
 import java.io.File
-import java.lang.{Boolean => JavaBool}
 import java.util.{List => JavaList}
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -50,44 +49,48 @@ trait FlinkSubmitTrait extends Logger {
   @throws[Exception] def submit(submitRequest: SubmitRequest): SubmitResponse = {
     logInfo(
       s"""
-         |"flink submit {"
-         |      "userFlinkHome" : ${submitRequest.flinkHome},
-         |      "flinkVersion" : ${submitRequest.flinkVersion},
-         |      "appName": ${submitRequest.appName},
-         |      "devMode": ${submitRequest.developmentMode.name()},
-         |      "execMode": ${submitRequest.executionMode.name()},
-         |      "resolveOrder": ${submitRequest.resolveOrder.getName},
-         |      "appConf": ${submitRequest.appConf},
-         |      "applicationType": ${submitRequest.applicationType},
-         |      "savePoint": ${submitRequest.savePoint},
-         |      "flameGraph": ${submitRequest.flameGraph != null},
-         |      "userJar": ${submitRequest.flinkUserJar},
-         |      "option": ${submitRequest.option},
-         |      "property": ${submitRequest.property},
-         |      "dynamicOption": ${submitRequest.dynamicOption.mkString(" ")},
-         |      "args": ${submitRequest.args}
-         |}
+         |---------------------------------------- flink start ----------------------------------------
+         |    userFlinkHome    : ${submitRequest.flinkHome}
+         |    flinkVersion     : ${submitRequest.flinkVersion}
+         |    appName          : ${submitRequest.appName}
+         |    devMode          : ${submitRequest.developmentMode.name()}
+         |    execMode         : ${submitRequest.executionMode.name()}
+         |    k8sNamespace     : ${submitRequest.k8sSubmitParam.kubernetesNamespace}
+         |    flinkDockerImage : ${submitRequest.k8sSubmitParam.flinkBaseImage}
+         |    clusterId        : ${submitRequest.k8sSubmitParam.clusterId}
+         |    resolveOrder     : ${submitRequest.resolveOrder.getName}
+         |    applicationType  : ${submitRequest.applicationType}
+         |    flameGraph       : ${submitRequest.flameGraph != null}
+         |    savePoint        : ${submitRequest.savePoint}
+         |    userJar          : ${submitRequest.flinkUserJar}
+         |    option           : ${submitRequest.option}
+         |    property         : ${submitRequest.property}
+         |    dynamicOption    : ${submitRequest.dynamicOption.mkString(" ")}
+         |    args             : ${submitRequest.args}
+         |    appConf          : ${submitRequest.appConf}
+         |---------------------------------------------------------------------------------------------
          |""".stripMargin)
     doSubmit(submitRequest)
   }
 
-  def stop(flinkHome: String, appId: String, jobStringId: String, savePoint: JavaBool, drain: JavaBool): String = {
+  @throws[Exception] def stop(stopRequest: StopRequest): StopResponse = {
     logInfo(
       s"""
-         |"flink stop {"
-         |      "flinkHome" :$flinkHome,
-         |      "appId": $appId,
-         |      "jobId": $jobStringId,
-         |      "savePoint": $savePoint,
-         |      "drain": $drain
-         |}
+         |---------------------------------------- flink stop ----------------------------------------
+         |    flinkHome      : ${stopRequest.flinkHome}
+         |    withSavePoint  : ${stopRequest.withSavePoint}
+         |    withDrain      : ${stopRequest.withDrain}
+         |    k8sNamespace   : ${stopRequest.kubernetesNamespace}
+         |    appId          : ${stopRequest.clusterId}
+         |    jobId          : ${stopRequest.jobId}
+         |---------------------------------------------------------------------------------------------
          |""".stripMargin)
-    doStop(flinkHome, appId, jobStringId, savePoint, drain)
+    doStop(stopRequest)
   }
 
   def doSubmit(submitRequest: SubmitRequest): SubmitResponse
 
-  def doStop(flinkHome: String, appId: String, jobStringId: String, savePoint: JavaBool, drain: JavaBool): String
+  def doStop(stopRequest: StopRequest): StopResponse
 
   private[submit] def getJobID(jobId: String) = Try(JobID.fromHexString(jobId)) match {
     case Success(id) => id
@@ -185,7 +188,7 @@ trait FlinkSubmitTrait extends Logger {
 
   private[submit] def validateAndGetActiveCommandLine(customCommandLines: JavaList[CustomCommandLine], commandLine: CommandLine): CustomCommandLine = {
     val line = checkNotNull(commandLine)
-    logInfo(s"Custom commandlines: $customCommandLines")
+    logInfo(s"Custom commandline: $customCommandLines")
     for (cli <- customCommandLines) {
       val isActive = cli.isActive(line)
       logInfo(s"Checking custom commandline $cli, isActive: $isActive")
@@ -195,7 +198,7 @@ trait FlinkSubmitTrait extends Logger {
   }
 
   private[submit] lazy val jvmProfilerJar: String = {
-    val pluginsPath = System.getProperty("app.home").concat("/plugins")
+    val pluginsPath = SystemPropertyUtils.get("app.home").concat("/plugins")
     val pluginsDir = new File(pluginsPath)
     pluginsDir.list().filter(_.matches("streamx-jvm-profiler-.*\\.jar")) match {
       case Array() => throw new IllegalArgumentException(s"[StreamX] can no found streamx-jvm-profiler jar in $pluginsPath")
@@ -210,9 +213,19 @@ trait FlinkSubmitTrait extends Logger {
 
 }
 
-case class WorkspaceEnv(flinkName: String,
-                        flinkHome: String,
-                        flinkDistJar: String,
-                        flinkLib: String,
-                        appJars: String,
-                        appPlugins: String)
+/**
+ *
+ * @param flinkName
+ * @param flinkHome
+ * @param flinkDistJar
+ * @param flinkLib
+ * @param appJars
+ * @param appPlugins
+ * #TODO: className provisional
+ */
+case class HdfsWorkspace(flinkName: String,
+                         flinkHome: String,
+                         flinkDistJar: String,
+                         flinkLib: String,
+                         appJars: String,
+                         appPlugins: String)

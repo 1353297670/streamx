@@ -21,12 +21,14 @@
 package com.streamxhub.streamx.console.core.service.impl;
 
 import com.streamxhub.streamx.common.util.ThreadUtils;
+import com.streamxhub.streamx.console.core.entity.FlinkVersion;
 import com.streamxhub.streamx.console.core.entity.Note;
+import com.streamxhub.streamx.console.core.service.FlinkVersionService;
 import com.streamxhub.streamx.console.core.service.NoteBookService;
 import com.streamxhub.streamx.console.core.service.SettingService;
-import com.streamxhub.streamx.repl.flink.interpreter.FlinkInterpreter;
-import com.streamxhub.streamx.repl.flink.interpreter.InterpreterOutput;
-import com.streamxhub.streamx.repl.flink.interpreter.InterpreterResult;
+import com.streamxhub.streamx.flink.repl.interpreter.FlinkInterpreter;
+import com.streamxhub.streamx.flink.repl.interpreter.InterpreterOutput;
+import com.streamxhub.streamx.flink.repl.interpreter.InterpreterResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -46,14 +48,17 @@ public class NoteBookServiceImpl implements NoteBookService {
     @Autowired
     private SettingService settingService;
 
+    @Autowired
+    private FlinkVersionService flinkVersionService;
+
     private ExecutorService executorService = new ThreadPoolExecutor(
-            Runtime.getRuntime().availableProcessors() * 2,
-            200,
-            60L,
-            TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(1024),
-            ThreadUtils.threadFactory("notebook-submit-executor"),
-            new ThreadPoolExecutor.AbortPolicy()
+        Runtime.getRuntime().availableProcessors() * 2,
+        200,
+        60L,
+        TimeUnit.SECONDS,
+        new LinkedBlockingQueue<>(1024),
+        ThreadUtils.threadFactory("notebook-submit-executor"),
+        new ThreadPoolExecutor.AbortPolicy()
     );
 
     @Override
@@ -62,7 +67,8 @@ public class NoteBookServiceImpl implements NoteBookService {
         executorService.execute(() -> {
             FlinkInterpreter interpreter = new FlinkInterpreter(content.getProperties());
             try {
-                interpreter.open(settingService.getEffectiveFlinkHome());
+                FlinkVersion flinkVersion = flinkVersionService.getDefault();
+                interpreter.open(flinkVersion.getFlinkHome());
                 InterpreterOutput out = new InterpreterOutput(log::info);
                 InterpreterResult result = interpreter.interpret(content.getCode(), out);
                 log.info("repl submit code:" + result.code());

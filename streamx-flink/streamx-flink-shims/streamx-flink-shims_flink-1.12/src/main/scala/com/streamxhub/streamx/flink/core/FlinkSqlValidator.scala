@@ -21,7 +21,7 @@
 package com.streamxhub.streamx.flink.core
 
 import com.streamxhub.streamx.common.enums.SqlErrorType
-import com.streamxhub.streamx.common.util.Logger
+import com.streamxhub.streamx.common.util.{ExceptionUtils, Logger}
 import com.streamxhub.streamx.flink.core.SqlCommand._
 import org.apache.calcite.config.Lex
 import org.apache.calcite.sql.parser.SqlParser
@@ -112,6 +112,7 @@ object FlinkSqlValidator extends Logger {
               }
             } catch {
               case e: Throwable =>
+                logError(s"verify error:${ExceptionUtils.stringifyException(e)}")
                 return SqlError(
                   SqlErrorType.SYNTAX_ERROR,
                   e.getLocalizedMessage,
@@ -127,8 +128,9 @@ object FlinkSqlValidator extends Logger {
       null
     } catch {
       case exception: Exception =>
+        logError(s"verify error:${ExceptionUtils.stringifyException(exception)}")
         val separator = "\001"
-        val error = exception.getLocalizedMessage
+        val error = exception.getMessage
         val array = error.split(separator)
         SqlError(
           SqlErrorType.of(array.head.toInt),

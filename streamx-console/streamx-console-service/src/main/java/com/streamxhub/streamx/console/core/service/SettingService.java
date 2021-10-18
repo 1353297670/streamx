@@ -24,8 +24,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.streamxhub.streamx.console.core.entity.SenderEmail;
 import com.streamxhub.streamx.console.core.entity.Setting;
 
-import java.io.IOException;
-import java.util.Map;
 
 /**
  * @author benjobs
@@ -34,7 +32,6 @@ public interface SettingService extends IService<Setting> {
 
     String KEY_MAVEN_REPOSITORY = "maven.central.repository";
     String KEY_STREAMX_ADDRESS = "streamx.console.webapp.address";
-    String KEY_STREAMX_WORKSPACE = "streamx.console.workspace";
 
     String KEY_ALERT_EMAIL_HOST = "alert.email.host";
     String KEY_ALERT_EMAIL_PORT = "alert.email.port";
@@ -43,7 +40,9 @@ public interface SettingService extends IService<Setting> {
     String KEY_ALERT_EMAIL_PASSWORD = "alert.email.password";
     String KEY_ALERT_EMAIL_SSL = "alert.email.ssl";
 
-    String KEY_ENV_FLINK_HOME = "env.flink.home";
+    String KEY_DOCKER_REGISTER_ADDRESS = "docker.register.address";
+    String KEY_DOCKER_REGISTER_USER = "docker.register.user";
+    String KEY_DOCKER_REGISTER_PASSWORD = "docker.register.password";
 
     /**
      * @param key
@@ -57,25 +56,18 @@ public interface SettingService extends IService<Setting> {
      */
     boolean update(Setting setting);
 
-    String getStreamXWorkspace();
-
     String getStreamXAddress();
 
     String getMavenRepository();
-
-    String getEffectiveFlinkHome();
-
-    Map<String, String> getFlinkDefaultConfig();
 
     boolean checkWorkspace();
 
     SenderEmail getSenderEmail();
 
-    Setting getFlinkSetting() throws IOException;
+    String getDockerRegisterAddress();
 
-    String getFlinkVersion();
+    String getDockerRegisterUser();
 
-    String getFlinkYaml();
+    String getDockerRegisterPassword();
 
-    void syncFlinkConf() throws IOException;
 }
