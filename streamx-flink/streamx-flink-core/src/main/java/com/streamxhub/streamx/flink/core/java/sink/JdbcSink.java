@@ -23,10 +23,14 @@ package com.streamxhub.streamx.flink.core.java.sink;
 import com.streamxhub.streamx.common.util.AssertUtils;
 import com.streamxhub.streamx.common.util.ConfigUtils;
 import com.streamxhub.streamx.flink.core.java.function.SQLFromFunction;
+import com.streamxhub.streamx.flink.core.java.operator.JdbcSinkMergeSqlOperator;
+import com.streamxhub.streamx.flink.core.java.operator.JdbcSinkOperator;
 import com.streamxhub.streamx.flink.core.scala.StreamingContext;
 import com.streamxhub.streamx.flink.core.scala.sink.JdbcSinkFunction;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 
 import java.util.Properties;
 
@@ -39,6 +43,7 @@ public class JdbcSink<T> {
     private Properties jdbc;
     private SQLFromFunction<T> sqlFunc;
     private String alias = "";
+    private Boolean isMerge = false;
 
     public JdbcSink(StreamingContext context) {
         this.context = context;
@@ -59,6 +64,11 @@ public class JdbcSink<T> {
         return this;
     }
 
+    public JdbcSink<T> merge(Boolean merge) {
+        this.isMerge = merge;
+        return this;
+    }
+
     public DataStreamSink<T> sink(DataStream<T> dataStream) {
         AssertUtils.notNull(sqlFunc);
         this.jdbc = this.jdbc == null ? ConfigUtils.getJdbcConf(context.parameter().toMap(), alias) : this.jdbc;
@@ -66,4 +76,12 @@ public class JdbcSink<T> {
         return dataStream.addSink(sinkFun);
     }
 
+    public SingleOutputStreamOperator operatorSink(DataStream<T> dataStream) {
+        this.jdbc = this.jdbc == null ? ConfigUtils.getJdbcConf(context.parameter().toMap(), alias) : this.jdbc;
+
+        if (isMerge) {
+            return dataStream.transform("jdbc-sink", TypeInformation.of(String.class), new JdbcSinkMergeSqlOperator(jdbc));
+        }
+        return dataStream.transform("jdbc-sink", TypeInformation.of(String.class), new JdbcSinkOperator(jdbc));
+    }
 }

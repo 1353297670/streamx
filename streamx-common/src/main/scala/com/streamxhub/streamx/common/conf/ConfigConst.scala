@@ -216,6 +216,8 @@ object ConfigConst {
   val KEY_JDBC_PASSWORD = "password"
   val KEY_JDBC_INSERT_BATCH = "batch.size"
   val DEFAULT_JDBC_INSERT_BATCH = 1
+  val KEY_JDBC_INSERT_INTERVAL = "interval"
+  val DEFAULT_JDBC_INSERT_INTERVAL = 1000L
 
   val MONGO_PREFIX = "mongodb."
   /**
