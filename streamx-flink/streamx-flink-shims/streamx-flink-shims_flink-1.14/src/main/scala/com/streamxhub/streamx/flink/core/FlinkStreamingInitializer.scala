@@ -40,9 +40,9 @@ import org.apache.flink.table.api.TableConfig
 
 import java.io.File
 import java.util.concurrent.TimeUnit
-import scala.collection.JavaConversions._
-import scala.collection.Map
-import scala.util.{Failure, Success, Try}
+import collection.JavaConversions._
+import collection.Map
+import util.{Failure, Success, Try}
 
 private[flink] object FlinkStreamingInitializer {
 
@@ -305,7 +305,7 @@ private[flink] class FlinkStreamingInitializer(args: Array[String], apiType: Api
     if (stateBackend != null) {
       require(
         stateBackend == XStateBackend.hashmap || stateBackend == XStateBackend.rocksdb,
-        "state.backend must be [hashmap|rocksdb] in flink 1.13"
+        "state.backend must be [hashmap|rocksdb] in flink 1.13 and above"
       )
       val storage = {
         val storage = parameter.get(KEY_FLINK_STATE_CHECKPOINT_STORAGE, null) match {

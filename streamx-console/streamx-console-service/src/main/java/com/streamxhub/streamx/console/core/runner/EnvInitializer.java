@@ -27,8 +27,7 @@ import com.streamxhub.streamx.common.enums.StorageType;
 import com.streamxhub.streamx.common.fs.FsOperator;
 import com.streamxhub.streamx.common.util.SystemPropertyUtils;
 import com.streamxhub.streamx.console.base.util.WebUtils;
-import com.streamxhub.streamx.console.core.entity.FlinkVersion;
-import com.streamxhub.streamx.console.core.service.SettingService;
+import com.streamxhub.streamx.console.core.entity.FlinkEnv;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
@@ -55,19 +54,12 @@ import static com.streamxhub.streamx.common.enums.StorageType.LFS;
 public class EnvInitializer implements ApplicationRunner {
 
     @Autowired
-    private SettingService settingService;
-
-    @Autowired
     private ApplicationContext context;
 
     private final Map<StorageType, Boolean> initialized = new ConcurrentHashMap<>(2);
 
-    private static final Pattern PATTERN_FLINK_SHIMS_ORIGIN_JAR = Pattern.compile(
-            "^streamx-flink-shims_flink-(1.12|1.13|1.14)-(.*)(?<!shaded).jar$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-
-    private static final Pattern PATTERN_FLINK_SHIMS_SHADED_JAR = Pattern.compile(
-            "^streamx-flink-shims_flink-(1.12|1.13|1.14)-(.*)-shaded.jar$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-
+    private static final Pattern PATTERN_FLINK_SHIMS_JAR = Pattern.compile(
+        "^streamx-flink-shims_flink-(1.12|1.13|1.14)-(.*).jar$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
@@ -92,6 +84,14 @@ public class EnvInitializer implements ApplicationRunner {
         if (initialized.get(storageType) == null) {
             FsOperator fsOperator = FsOperator.of(storageType);
             Workspace workspace = Workspace.of(storageType);
+
+            if (storageType.equals(LFS)) {
+                String localDist = workspace.APP_LOCAL_DIST();
+                if (!fsOperator.exists(localDist)) {
+                    log.info("mkdir {} starting ...", localDist);
+                    fsOperator.mkdirs(localDist);
+                }
+            }
 
             String appUploads = workspace.APP_UPLOADS();
             if (!fsOperator.exists(appUploads)) {
@@ -145,10 +145,9 @@ public class EnvInitializer implements ApplicationRunner {
                 fsOperator.delete(appShims);
             }
 
-            Pattern shimsPattern = StorageType.LFS.equals(storageType) ? PATTERN_FLINK_SHIMS_ORIGIN_JAR : PATTERN_FLINK_SHIMS_SHADED_JAR;
-            File[] shims = new File(WebUtils.getAppDir("lib")).listFiles(pathname -> pathname.getName().matches(shimsPattern.pattern()));
+            File[] shims = new File(WebUtils.getAppDir("lib")).listFiles(pathname -> pathname.getName().matches(PATTERN_FLINK_SHIMS_JAR.pattern()));
             for (File file : Objects.requireNonNull(shims)) {
-                Matcher matcher = shimsPattern.matcher(file.getName());
+                Matcher matcher = PATTERN_FLINK_SHIMS_JAR.matcher(file.getName());
                 if (!keepFile.equals(file.getName()) && matcher.matches()) {
                     String version = matcher.group(1);
                     String shimsPath = appShims.concat("/flink-").concat(version);
@@ -168,8 +167,8 @@ public class EnvInitializer implements ApplicationRunner {
         }
     }
 
-    public void checkFlinkEnv(StorageType storageType, FlinkVersion flinkVersion) {
-        String flinkLocalHome = flinkVersion.getFlinkHome();
+    public void checkFlinkEnv(StorageType storageType, FlinkEnv flinkEnv) {
+        String flinkLocalHome = flinkEnv.getFlinkHome();
         if (flinkLocalHome == null) {
             throw new ExceptionInInitializerError("[StreamX] FLINK_HOME is undefined,Make sure that Flink is installed.");
         }
@@ -184,7 +183,7 @@ public class EnvInitializer implements ApplicationRunner {
         String flinkHome = appFlink.concat("/").concat(flinkName);
         if (!fsOperator.exists(flinkHome)) {
             log.info("{} is not exists,upload beginning....", flinkHome);
-            fsOperator.upload(flinkLocalHome, flinkHome, false, false);
+            fsOperator.upload(flinkLocalHome, flinkHome, false, true);
         }
     }
 

@@ -135,51 +135,53 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
     }
 
     @Override
-    public RestResponse build(Long id) {
+    public void build(Long id) throws Exception {
         Project project = getById(id);
         this.baseMapper.startBuild(project);
         StringBuilder builder = new StringBuilder();
         tailBuffer.put(id, builder.append(project.getLog4BuildStart()));
-        boolean success = cloneSourceCode(project);
-        if (success) {
+        boolean cloneSuccess = cloneSourceCode(project);
+        if (cloneSuccess) {
             executorService.execute(() -> {
-                boolean build = ProjectServiceImpl.this.projectBuild(project);
+                boolean build = projectBuild(project);
                 if (build) {
                     this.baseMapper.successBuild(project);
                     // 发布到apps下
-                    this.deploy(project);
-                    // 更新application的发布状态.
-                    List<Application> applications = getApplications(project);
-                    // 更新部署状态
-                    FlinkTrackingTask.refreshTracking(() -> applications.forEach((app) -> {
-                        try {
-                            log.info("update deploy by project:{},appName:{}", project.getName(), app.getJobName());
+                    try {
+                        this.deploy(project);
+                        // 更新application的发布状态.
+                        List<Application> applications = getApplications(project);
+                        // 更新部署状态
+                        FlinkTrackingTask.refreshTracking(() -> applications.forEach((app) -> {
+                            log.info("update deploy by project: {}, appName:{}", project.getName(), app.getJobName());
                             app.setDeploy(DeployState.NEED_DEPLOY_AFTER_BUILD.get());
                             this.applicationMapper.updateDeploy(app);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }));
+                        }));
+                    } catch (Exception e) {
+                        this.baseMapper.failureBuild(project);
+                        log.error(String.format("deploy error, project name: %s ", project.getName()), e);
+                    }
                 } else {
                     this.baseMapper.failureBuild(project);
+                    log.error("build error, project name: {} ", project.getName());
                 }
             });
-            return RestResponse.create().message("[StreamX] git clone and pull success. begin maven install");
         } else {
-            return RestResponse.create().message("[StreamX] clone or pull error.");
+            log.error("[StreamX] clone or pull error.");
+            this.baseMapper.failureBuild(project);
         }
     }
 
-    private void deploy(Project project) {
+    private void deploy(Project project) throws Exception {
         File path = project.getAppSource();
         List<File> apps = new ArrayList<>();
         // 在项目路径下寻找编译完成的tar.gz(StreamX项目)文件或jar(普通,官方标准的flink工程)...
         findTarOrJar(apps, path);
-        apps.forEach((app) -> {
+        for (File app : apps) {
             String appPath = app.getAbsolutePath();
             // 1). tar.gz文件....
             if (appPath.endsWith("tar.gz")) {
-                File deployPath = project.getAppBase();
+                File deployPath = project.getDistHome();
                 if (!deployPath.exists()) {
                     deployPath.mkdirs();
                 }
@@ -197,18 +199,18 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
                     // 2) .jar文件(普通,官方标准的flink工程)
                     Utils.checkJarFile(app.toURI().toURL());
                     String moduleName = app.getName().replace(".jar", "");
-                    File appBase = project.getAppBase();
+                    File appBase = project.getDistHome();
                     File targetDir = new File(appBase, moduleName);
                     if (!targetDir.exists()) {
                         targetDir.mkdirs();
                     }
                     File targetJar = new File(targetDir, app.getName());
                     app.renameTo(targetJar);
-                } catch (IOException exception) {
-                    exception.printStackTrace();
+                } catch (IOException e) {
+                    throw e;
                 }
             }
-        });
+        }
     }
 
     private void findTarOrJar(List<File> list, File path) {
@@ -253,7 +255,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
     @Override
     public List<String> modules(Long id) {
         Project project = getById(id);
-        File appHome = project.getAppBase();
+        File appHome = project.getDistHome();
         List<String> list = new ArrayList<>();
         Arrays.stream(Objects.requireNonNull(appHome.listFiles())).forEach((x) -> list.add(x.getName()));
         return list;
@@ -262,7 +264,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
     @Override
     public List<String> jars(Project project) {
         List<String> list = new ArrayList<>(0);
-        File apps = new File(project.getAppBase(), project.getModule());
+        File apps = new File(project.getDistHome(), project.getModule());
         for (File file : Objects.requireNonNull(apps.listFiles())) {
             if (file.getName().endsWith(".jar")) {
                 list.add(file.getName());
@@ -274,7 +276,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
     @Override
     public String getAppConfPath(Long id, String module) {
         Project project = getById(id);
-        File appHome = project.getAppBase();
+        File appHome = project.getDistHome();
         Optional<File> fileOptional = Arrays.stream(Objects.requireNonNull(appHome.listFiles()))
             .filter((x) -> x.getName().equals(module))
             .findFirst();
@@ -302,7 +304,7 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
     @Override
     public List<Map<String, Object>> listConf(Project project) {
         try {
-            File file = new File(project.getAppBase(), project.getModule());
+            File file = new File(project.getDistHome(), project.getModule());
             File unzipFile = new File(file.getAbsolutePath().replaceAll(".tar.gz", ""));
             if (!unzipFile.exists()) {
                 GZipUtils.decompress(file.getAbsolutePath(), file.getParentFile().getAbsolutePath());
@@ -358,9 +360,9 @@ public class ProjectServiceImpl extends ServiceImpl<ProjectMapper, Project>
                 e
             );
             tailBuffer.get(project.getId()).append(errorLog);
-            e.printStackTrace();
+            log.error(String.format("project %s clone error ", project.getName()), e);
+            return false;
         }
-        return false;
     }
 
     private void gitWorkTree(Long id, File workTree, String space) {

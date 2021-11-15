@@ -15,7 +15,7 @@
           <a-radio-button
             @click="handleQuery(-1)"
             value="-1">
-            Unbuild
+            Not Build
           </a-radio-button>
           <a-radio-button
             @click="handleQuery(0)"
@@ -117,11 +117,17 @@
               class="list-content-item"
               style="width: 150px">
               <span>Build State</span>
-              <p v-if="item.buildState === 2">
-                <a-tag color="#f5222d">FAILED</a-tag>
+              <p v-if="item.buildState === -1">
+                <a-tag color="#C0C0C0">NOT BUILD</a-tag>
+              </p>
+              <p v-else-if="item.buildState === 0">
+                <a-tag color="#1AB58E" class="status-processing-building">BUILDING</a-tag>
+              </p>
+              <p v-else-if="item.buildState === 1">
+                <a-tag color="#52c41a">SUCCESSFUL</a-tag>
               </p>
               <p v-else>
-                <a-tag color="#52c41a">SUCCESSFUL</a-tag>
+                <a-tag color="#f5222d">FAILED</a-tag>
               </p>
             </div>
           </div>
@@ -179,7 +185,6 @@
 </template>
 <script>
 import { build, list,remove,closebuild } from '@api/project'
-import { check } from '@api/setting'
 import Ellipsis from '@comp/Ellipsis'
 import SockJS from 'sockjs-client'
 import Stomp from 'webstomp-client'
@@ -240,40 +245,18 @@ export default {
     },
 
     handleBuild (record) {
-      check().then((resp) => {
-        const success = resp.data == true || resp.data == 'true'
-        if (success) {
-          this.$swal.fire({
-            icon: 'success',
-            title: 'The current project is building',
-            showConfirmButton: false,
-            timer: 2000
-          }).then((r)=> {
-            build({id: record.id})
-          })
-        } else {
-          this.$swal.fire(
-            'Failed',
-            'Please check "StreamX Console Workspace" is defined and make sure have read and write permissions',
-            'error'
-          )
-        }
+      this.$swal.fire({
+        icon: 'success',
+        title: 'The current project is building',
+        showConfirmButton: false,
+        timer: 2000
+      }).then((r)=> {
+        build({id: record.id})
       })
     },
 
     handleAdd () {
-      check().then((resp) => {
-        const success = resp.data == true || resp.data == 'true'
-        if (success) {
-          this.$router.push({ 'path': '/flink/project/add' })
-        } else {
-          this.$swal.fire(
-            'Failed',
-            'Please check "StreamX Console Workspace" is defined and make sure have read and write permissions',
-            'error'
-          )
-        }
-      })
+      this.$router.push({ 'path': '/flink/project/add' })
     },
 
     handleDelete(item) {
@@ -443,5 +426,20 @@ export default {
   border-radius: 50%;
   background-color: #ebebeb;
   border: 6px solid #ebebeb;
+}
+
+.status-processing-building {
+  animation: building-color 800ms ease-out infinite alternate;
+}
+
+@keyframes building-color {
+  0% {
+    border-color: #1AB58E;
+    box-shadow: 0 0 1px #1AB58E, inset 0 0 2px #1AB58E;
+  }
+  100% {
+    border-color: #1AB58E;
+    box-shadow: 0 0 10px #1AB58E, inset 0 0 5px #1AB58E;
+  }
 }
 </style>

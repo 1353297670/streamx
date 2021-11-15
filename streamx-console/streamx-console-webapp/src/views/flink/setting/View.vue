@@ -208,7 +208,7 @@
 
 <script>
 import {all, update } from '@api/setting'
-import {list, create, get as getFlink, sync, update as updateFlink,exists, setDefault } from '@api/flinkversion'
+import {list, create, get as getFlink, sync, update as updateFlink,exists, setDefault } from '@/api/flinkenv'
 import SvgIcon from '@/components/SvgIcon'
 import monaco from '@/views/flink/app/Monaco.yaml'
 
@@ -342,6 +342,12 @@ export default {
                   if(resp.data) {
                     this.flinkFormVisible = false
                     this.handleFlinkAll()
+                  } else {
+                    this.$swal.fire(
+                        'Failed',
+                        resp['message'].replaceAll(/\[StreamX]/g,''),
+                        'error'
+                    )
                   }
                 })
               } else {
@@ -371,7 +377,7 @@ export default {
               } else {
                 this.$swal.fire(
                   'Failed',
-                  'flink name or version is already exists',
+                  'flink name is already exists',
                   'error'
                 )
               }

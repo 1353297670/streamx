@@ -52,7 +52,7 @@ import scala.Enumeration;
 
 /**
  * Event Listener for K8sFlinkTrkMonitor
- * author: Al-assad
+ * @author Al-assad
  */
 public class K8sFlinkChangeEventListener {
 
@@ -93,7 +93,7 @@ public class K8sFlinkChangeEventListener {
         if (ExecutionMode.KUBERNETES_NATIVE_SESSION.equals(mode)) {
             query.eq("job_id", jobStatus.jobId());
         }
-        query.orderByDesc("create_time");
+        query.orderByDesc("create_time").last("limit 1");
         Application app = applicationService.getOne(query);
         if (app == null) {
             return;
