@@ -29,7 +29,6 @@ import static io.vertx.core.impl.Arguments.require;
 
 /**
  * @author hx
- * @date 2021-10-29 13:50
  * @desc 自定义 jdbc-sink Operator，至少一次语义
  */
 public class JdbcSinkOperator<T extends Serializable> extends AbstractStreamOperator<Object> implements ProcessingTimeCallback, OneInputStreamOperator<T, Object>{
@@ -154,14 +153,13 @@ public class JdbcSinkOperator<T extends Serializable> extends AbstractStreamOper
     }
 
     public void execBatch(List datas) throws Exception{
-        logger.debug("执行批次大小：" + list.size());
         if (list.size() > 0) {
             Long start = System.currentTimeMillis();
             int length = statement.executeBatch().length;
             statement.clearBatch();
             connection.commit();
             Long end = System.currentTimeMillis();
-            logger.debug("执行批次大小：" + length + ", 执行时长：" + (end - start));
+            logger.info("执行批次大小：" + length + ", 执行时长：" + (end - start));
             list.clear();
         }
     }

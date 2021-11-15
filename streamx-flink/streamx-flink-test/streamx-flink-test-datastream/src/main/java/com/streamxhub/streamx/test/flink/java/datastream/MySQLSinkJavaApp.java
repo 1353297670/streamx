@@ -47,7 +47,7 @@ public class MySQLSinkJavaApp {
 
          DataStream<String> source = new KafkaSource<String>(context)
              .getDataStream()
-             .map((MapFunction<KafkaRecord<String>, String>) KafkaRecord::value);
+             .map(x->x.value());
 
          source.print();
          new JdbcSink<String>(context).operatorSink(source);

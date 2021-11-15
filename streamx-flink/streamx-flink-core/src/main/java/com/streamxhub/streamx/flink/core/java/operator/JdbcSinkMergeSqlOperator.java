@@ -30,7 +30,6 @@ import static io.vertx.core.impl.Arguments.require;
 
 /**
  * @author hx
- * @date 2021-11-15 13:50
  * @desc 自定义 jdbc-sink Operator,至少一次语义，将一个批次的连续插入sql数据合并输出
  */
 public class JdbcSinkMergeSqlOperator<T extends Serializable> extends AbstractStreamOperator<Object> implements ProcessingTimeCallback, OneInputStreamOperator<T, Object>{
